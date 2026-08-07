@@ -199,7 +199,7 @@ bool TurnOrderProcessor::computeCanActSimultaneously(PlayerColor active, PlayerC
 	if (currentDay > simturnsTurnsMaxLimit())
 		return false;
 
-	if (gameHandler->gameInfo().getStartInfo()->simturnsInfo.ignoreAlliedContacts && activeInfo->team == waitingInfo->team)
+	if (gameHandler->gameInfo().getStartInfo()->simturnsInfo.ignorePlayerContacts)
 		return true;
 
 	if (playersInContact(active, waiting))

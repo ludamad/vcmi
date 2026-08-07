@@ -97,6 +97,7 @@ set(test_SRCS
  		spells/targetConditions/SpellEffectConditionTest.cpp
  		spells/targetConditions/TargetConditionItemFixture.cpp
 
+		server/FreeForAllSimultaneousTurnsTest.cpp
 		server/queries/QueriesProcessorTest.cpp
 
 		mock/BattleFake.cpp
