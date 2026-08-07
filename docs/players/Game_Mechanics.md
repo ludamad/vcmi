@@ -171,31 +171,20 @@ TODO
 
 ### Simultaneous turns
 
-Simultaneous turns allow multiple players to act at the same time, speeding up early game phase in multiplayer games. During this phase if different players (allies or not) attempt to interact with each other, such as capture objects owned by other players (mines, dwellings, towns) or attack their heroes, game will block such actions. Interaction with same map objects at the same time, such as attacking same wandering monster is also blocked.
+Simultaneous turns allow multiple players to act at the same time, speeding up multiplayer games. Players may interact normally while acting simultaneously, including capturing enemy objects and attacking enemy heroes. The server still blocks an interaction when another player is already visiting the same object or when the target player is already engaged in battle.
 
 Following options can be used to configure simultaneous turns:
 
-- Minimal duration (at least for): this is duration during which simultaneous turns will run unconditionally. Until specified number of days have passed, simultaneous turns will never break and game will not attempt to detect contacts.
-- Maximal duration (at most for): this is duration after which simultaneous turns will end unconditionally, even if players still have not contacted each other. However if contact detection discovers contact between two players, simultaneous turns between them might end before specified duration.
+- Minimal duration (at least for): this is duration during which simultaneous turns will run unconditionally.
+- Maximal duration (at most for): this is duration after which simultaneous turns will end unconditionally. Player contact does not end simultaneous turns before this duration.
 - Simultaneous turns for AI: If this option is on, AI can act at the same time as human players. Note that AI shares settings for simultaneous turns with human players - if no simultaneous turns have been set up this option has no effect.
 
-While simultaneous turns are active, VCMI tracks contacts for each pair of player separately.
-
-Players are considered to be "in contact" if movement range of their heroes at the start of turn overlaps, or, in other words - if their heroes can meet on this turn if both walk towards each other. When calculating movement range, game uses rules similar to standard movement range calculation in vcmi, meaning that game will track movement through monoliths and subterranean gates, but will not account for any removable obstacles, such as pickable treasures that block path between heroes. Any existing wandering monsters that block path between heroes are ignored for range calculation. At the moment, game will not account for any ways to extend movement range - Dimension Door or Town Portal spells, visiting map objects such as Stables, releasing heroes from prisons, etc.
-
-Once detected, contact can never be "lost". If game detected contact between two players, this contact will remain active till the end of the game, even if their heroes move far enough from each other.
-
-Game performs contact detection once per turn, at the very start of each in-game day. Once contact detection has been performed, players that are not in contact with each other can start making turn. For example, in game with 4 players: red, blue, brown and green. If game detected contact between red and blue following will happen:
-
-- red, brown and green will all instantly start turn
-- once red ends his turn, blue will be able to start his own turn (even if brown or green are still making turn)
-
-Once maximal duration of simultaneous turns (as specified during scenario setup) has been reached, or if all players are in contact with each other, game will return to standard turn order: red, blue, brown, green...
+Once maximal duration of simultaneous turns (as specified during scenario setup) has been reached, game will return to standard turn order: red, blue, brown, green...
 
 Differences compared to HD Mod version:
 
 - In VCMI, players can see actions of other players immediately (provided that they have revealed fog of war) instead of waiting for next turn
-- In VCMI, attempt to attack hero of another player during simultaneous turns will be blocked instead of reloading save from start of turn like in HD Mod
+- In VCMI, players are responsible for cooperatively sequencing enemy interactions during simultaneous turns. The first accepted interaction becomes authoritative, and existing object-visit and battle locks reject conflicting actions.
 
 ## Manuals and guides
 

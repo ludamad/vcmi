@@ -99,6 +99,7 @@ set(test_SRCS
 
 		texts/TextOperationsTest.cpp
 
+		server/FreeForAllSimultaneousTurnsTest.cpp
 		server/queries/QueriesProcessorTest.cpp
 
 		mock/BattleFake.cpp

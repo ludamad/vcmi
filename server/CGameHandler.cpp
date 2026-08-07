@@ -940,10 +940,6 @@ bool CGameHandler::moveHero(ObjectInstanceID hid, int3 dst, EMovementMode moveme
 	if (objectToVisit &&
 		objectToVisit->getOwner().isValidPlayer())
 	{
-		if (gameInfo().getPlayerRelations(objectToVisit->getOwner(), h->getOwner()) == PlayerRelations::ENEMIES &&
-		   !turnOrder->isContactAllowed(objectToVisit->getOwner(), h->getOwner()))
-			return complainRet("You cannot move your hero there. This object belongs to another player and simultaneous turns are still active!");
-
 		if (gs->getBattle(objectToVisit->getOwner()) != nullptr)
 			return complainRet("You cannot move your hero there. This object belongs to another player who is engaged in battle and simultaneous turns are still active!");
 	}
