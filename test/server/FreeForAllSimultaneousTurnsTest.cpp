@@ -212,6 +212,9 @@ protected:
 		gameHandler->turnOrder->addPlayer(BLUE_PLAYER);
 		gameHandler->turnOrder->addPlayer(TAN_PLAYER);
 		gameHandler->turnOrder->onGameStarted();
+		gameHandler->onAdvInterfaceReady(RED_PLAYER);
+		gameHandler->onAdvInterfaceReady(BLUE_PLAYER);
+		gameHandler->onAdvInterfaceReady(TAN_PLAYER);
 	}
 };
 
@@ -339,12 +342,14 @@ TEST_F(ThreePlayerFreeForAllSimultaneousTurnsTest, battleRecoveryPreservesAllSha
 	ASSERT_TRUE(moveOneTile(tanHero, tanDestination));
 
 	gameHandler->battles->cheatBattleVictory(RED_PLAYER);
-	for(int remainingDialogLimit = 10; remainingDialogLimit > 0; --remainingDialogLimit)
+	for(int remainingDialogLimit = 100; ; --remainingDialogLimit)
 	{
 		auto query = gameHandler->queries->topQuery(RED_PLAYER);
-		if(!query || !query->endsByPlayerAnswer())
+		if(!query)
 			break;
 
+		ASSERT_GT(remainingDialogLimit, 0) << "Too many post-battle dialogs";
+		ASSERT_TRUE(query->endsByPlayerAnswer()) << query;
 		ASSERT_TRUE(gameHandler->queryReply(query->queryID, 0, RED_PLAYER));
 	}
 
@@ -359,7 +364,25 @@ TEST_F(ThreePlayerFreeForAllSimultaneousTurnsTest, battleRecoveryPreservesAllSha
 	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(TAN_PLAYER));
 	EXPECT_EQ(tanHero->visitablePos(), tanDestination);
 
+	auto * redHero = hero(RED_PLAYER);
+	auto * blueReserveHero = hero(BLUE_PLAYER);
+	ASSERT_NE(redHero, nullptr);
+	ASSERT_NE(blueReserveHero, nullptr);
+	const int3 redDestination = redHero->visitablePos() + int3(0, 1, 0);
+	const int3 blueDestination = blueReserveHero->visitablePos() + int3(0, -1, 0);
+	ASSERT_TRUE(moveOneTile(redHero, redDestination));
+	ASSERT_TRUE(moveOneTile(blueReserveHero, blueDestination));
+	EXPECT_EQ(redHero->visitablePos(), redDestination);
+	EXPECT_EQ(blueReserveHero->visitablePos(), blueDestination);
+
+	const int battleDay = gameState->day;
 	EXPECT_TRUE(gameHandler->turnOrder->onPlayerEndsTurn(RED_PLAYER));
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(BLUE_PLAYER));
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(TAN_PLAYER));
+	EXPECT_TRUE(gameHandler->turnOrder->onPlayerEndsTurn(BLUE_PLAYER));
+	EXPECT_TRUE(gameHandler->turnOrder->onPlayerEndsTurn(TAN_PLAYER));
+	EXPECT_EQ(gameState->day, battleDay + 1);
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(RED_PLAYER));
 	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(BLUE_PLAYER));
 	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(TAN_PLAYER));
 }
