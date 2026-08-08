@@ -36,9 +36,9 @@
 class GameStateTest : public ::testing::Test, public ServerCallback, public MapListener
 {
 public:
-	GameStateTest()
+	explicit GameStateTest(const std::string & mapPath = "test/MiniTest/")
 		: gameEventCallback(std::make_shared<GameEventCallbackMock>(this)),
-		mapService("test/MiniTest/", this),
+		mapService(mapPath, this),
 		map(nullptr)
 	{
 	}

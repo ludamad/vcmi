@@ -1,0 +1,74 @@
+{
+	"allowedAbilities" : {},
+	"allowedArtifacts" : {},
+	"allowedHeroes" : {},
+	"allowedSpells" : {},
+	"defeatIconIndex" : 0,
+	"difficulty" : "NORMAL",
+	"mapLevels" : {
+		"surface" : {
+			"height" : 8,
+			"index" : 0,
+			"width" : 8
+		}
+	},
+	"mods" : [],
+	"name" : "Three-player simultaneous turns test",
+	"players" : {
+		"blue" : {
+			"canPlay" : "PlayerOrAI",
+			"mainHero" : "christian",
+			"heroes" : {
+				"hero_1" : {
+					"type" : "christian"
+				}
+			}
+		},
+		"red" : {
+			"canPlay" : "PlayerOrAI",
+			"mainHero" : "catherine",
+			"heroes" : {
+				"hero_0" : {
+					"type" : "catherine"
+				}
+			}
+		},
+		"tan" : {
+			"canPlay" : "PlayerOrAI",
+			"mainHero" : "edric",
+			"heroes" : {
+				"hero_2" : {
+					"type" : "edric"
+				}
+			}
+		}
+	},
+	"triggeredEvents" : {
+		"standardDefeat" : {
+			"condition" : [
+				"daysWithoutTown",
+				{
+					"value" : 7
+				}
+			],
+			"effect" : {
+				"messageToSend" : "standardDefeat",
+				"type" : "defeat"
+			},
+			"message" : "standardDefeat"
+		},
+		"standardVictory" : {
+			"condition" : [
+				"standardWin"
+			],
+			"effect" : {
+				"messageToSend" : "standardVictory",
+				"type" : "victory"
+			},
+			"message" : "standardVictory"
+		}
+	},
+	"victoryIconIndex" : 0,
+	"versionMajor" : 1,
+	"versionMinor" : 0
+}
