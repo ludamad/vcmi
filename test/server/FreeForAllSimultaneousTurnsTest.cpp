@@ -16,6 +16,8 @@
 #include "../../lib/mapObjects/CGHeroInstance.h"
 #include "../../lib/mapping/CMap.h"
 #include "../../lib/networkPacks/PacksForClient.h"
+#include "../../lib/networkPacks/PacksForServer.h"
+#include "../../lib/serializer/CMemorySerializer.h"
 #include "../../server/CGameHandler.h"
 #include "../../server/IGameServer.h"
 #include "../../server/processors/TurnOrderProcessor.h"
@@ -133,7 +135,65 @@ TEST_F(FreeForAllSimultaneousTurnsTest, contactDetectionCanStillBeEnabledForComp
 	EXPECT_FALSE(gameHandler->turnOrder->isPlayerMakingTurn(BLUE_PLAYER));
 }
 
-TEST_F(FreeForAllSimultaneousTurnsTest, enemyHeroInteractionStartsBattleWithoutEndingSharedTurn)
+TEST_F(FreeForAllSimultaneousTurnsTest, maximumDurationStillRestoresSequentialTurns)
+{
+	gameState->day = 1;
+	gameState->getStartInfo()->simturnsInfo.optionalTurns = 0;
+
+	startTurns(true);
+
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(RED_PLAYER));
+	EXPECT_FALSE(gameHandler->turnOrder->isPlayerMakingTurn(BLUE_PLAYER));
+}
+
+TEST_F(FreeForAllSimultaneousTurnsTest, enemiesCanAlternateNormalMovementDuringSharedTurn)
+{
+	startTurns(true);
+
+	auto * redHero = hero(RED_PLAYER);
+	auto * blueHero = hero(BLUE_PLAYER);
+	ASSERT_NE(redHero, nullptr);
+	ASSERT_NE(blueHero, nullptr);
+
+	const int3 redStart = redHero->visitablePos();
+	const int3 blueStart = blueHero->visitablePos();
+	const int3 redDestination = redStart + int3(0, 1, 0);
+	const int3 blueDestination = blueStart + int3(0, 1, 0);
+
+	ASSERT_TRUE(gameHandler->moveHero(
+		redHero->id,
+		redHero->convertFromVisitablePos(redDestination),
+		EMovementMode::STANDARD,
+		false,
+		RED_PLAYER));
+	ASSERT_TRUE(gameHandler->moveHero(
+		blueHero->id,
+		blueHero->convertFromVisitablePos(blueDestination),
+		EMovementMode::STANDARD,
+		false,
+		BLUE_PLAYER));
+
+	EXPECT_EQ(redHero->visitablePos(), redDestination);
+	EXPECT_EQ(blueHero->visitablePos(), blueDestination);
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(RED_PLAYER));
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(BLUE_PLAYER));
+}
+
+TEST_F(FreeForAllSimultaneousTurnsTest, sharedTurnsRestartForEnemiesOnFollowingDay)
+{
+	startTurns(true);
+
+	ASSERT_TRUE(gameHandler->turnOrder->onPlayerEndsTurn(RED_PLAYER));
+	EXPECT_FALSE(gameHandler->turnOrder->isPlayerMakingTurn(RED_PLAYER));
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(BLUE_PLAYER));
+
+	ASSERT_TRUE(gameHandler->turnOrder->onPlayerEndsTurn(BLUE_PLAYER));
+
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(RED_PLAYER));
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(BLUE_PLAYER));
+}
+
+TEST_F(FreeForAllSimultaneousTurnsTest, enemyHeroInteractionStartsBattleAndUsesExistingBattleLock)
 {
 	startTurns(true);
 
@@ -168,6 +228,28 @@ TEST_F(FreeForAllSimultaneousTurnsTest, enemyHeroInteractionStartsBattleWithoutE
 	EXPECT_EQ(gameState->getBattle(BLUE_PLAYER), battle);
 	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(RED_PLAYER));
 	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(BLUE_PLAYER));
+
+	MoveHero redMovement;
+	MoveHero blueMovement;
+	EXPECT_TRUE(gameHandler->isBlockedByQueries(&redMovement, RED_PLAYER));
+	EXPECT_TRUE(gameHandler->isBlockedByQueries(&blueMovement, BLUE_PLAYER));
+}
+
+TEST(FreeForAllSimultaneousTurnsSerializationTest, preservesContactPolicyAcrossSaveCopy)
+{
+	SimturnsInfo source;
+	source.requiredTurns = 3;
+	source.optionalTurns = 999;
+	source.allowHumanWithAI = true;
+	source.ignorePlayerContacts = true;
+
+	CMemorySerializer serializer;
+	serializer.oser & source;
+
+	SimturnsInfo restored;
+	serializer.iser & restored;
+
+	EXPECT_EQ(restored, source);
 }
 
 }
