@@ -842,8 +842,9 @@ target_include_directories(vcmiMain
 )
 
 if(MINGW)
+	# Public because the facade consumes vcmiMain's objects and link interface.
 	# Link Windows system libs: WinSock2 (ws2_32) + socket extensions (mswsock) + Debug Help API (dbghelp)
-	target_link_libraries(vcmiMain PRIVATE ws2_32 mswsock dbghelp)
+	target_link_libraries(vcmiMain PUBLIC ws2_32 mswsock dbghelp)
 endif()
 
 # Use '-Wa,-mbig-obj' for files that generate very large object files
