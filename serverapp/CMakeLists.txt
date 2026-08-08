@@ -17,7 +17,8 @@ set(serverapp_LIBS vcmi)
 if(CMAKE_SYSTEM_NAME MATCHES FreeBSD OR HAIKU)
 	list(APPEND serverapp_LIBS execinfo)
 endif()
-target_link_libraries(vcmiserver PRIVATE ${serverapp_LIBS} minizip::minizip vcmiservercommon)
+# Keep the static server archive before the facade import library for one-pass MinGW linking.
+target_link_libraries(vcmiserver PRIVATE vcmiservercommon ${serverapp_LIBS} minizip::minizip)
 
 target_include_directories(vcmiserver
 	PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
