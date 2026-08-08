@@ -29,6 +29,12 @@ namespace
 
 constexpr PlayerColor RED_PLAYER{0};
 constexpr PlayerColor BLUE_PLAYER{1};
+constexpr PlayerColor TAN_PLAYER{2};
+
+GameConnectionID connectionFor(PlayerColor player)
+{
+	return static_cast<GameConnectionID>(player.getNum() + 1);
+}
 
 class ApplyingGameServer final : public IGameServer
 {
@@ -55,12 +61,12 @@ public:
 
 	bool hasPlayerAt(PlayerColor player, GameConnectionID connectionID) const override
 	{
-		return false;
+		return connectionID == connectionFor(player);
 	}
 
 	bool hasBothPlayersAtSameConnection(PlayerColor left, PlayerColor right) const override
 	{
-		return false;
+		return connectionFor(left) == connectionFor(right);
 	}
 
 	void clearPackageResult()
@@ -92,6 +98,12 @@ private:
 
 class FreeForAllSimultaneousTurnsTest : public GameStateTest
 {
+public:
+	explicit FreeForAllSimultaneousTurnsTest(const std::string & mapPath = "test/MiniTest/")
+		: GameStateTest(mapPath)
+	{
+	}
+
 protected:
 	void SetUp() override
 	{
@@ -183,6 +195,199 @@ protected:
 	ApplyingGameServer server;
 	std::unique_ptr<CGameHandler> gameHandler;
 };
+
+class ThreePlayerFreeForAllSimultaneousTurnsTest : public FreeForAllSimultaneousTurnsTest
+{
+public:
+	ThreePlayerFreeForAllSimultaneousTurnsTest()
+		: FreeForAllSimultaneousTurnsTest("test/ThreePlayerSimturns/")
+	{
+	}
+
+protected:
+	void startThreePlayerTurns()
+	{
+		gameState->getStartInfo()->simturnsInfo.ignorePlayerContacts = true;
+		gameHandler->turnOrder->addPlayer(RED_PLAYER);
+		gameHandler->turnOrder->addPlayer(BLUE_PLAYER);
+		gameHandler->turnOrder->addPlayer(TAN_PLAYER);
+		gameHandler->turnOrder->onGameStarted();
+	}
+};
+
+TEST_F(ThreePlayerFreeForAllSimultaneousTurnsTest, allEnemiesStartTheirTurnTogether)
+{
+	ASSERT_EQ(gameState->getPlayerRelations(RED_PLAYER, BLUE_PLAYER), PlayerRelations::ENEMIES);
+	ASSERT_EQ(gameState->getPlayerRelations(RED_PLAYER, TAN_PLAYER), PlayerRelations::ENEMIES);
+	ASSERT_EQ(gameState->getPlayerRelations(BLUE_PLAYER, TAN_PLAYER), PlayerRelations::ENEMIES);
+
+	startThreePlayerTurns();
+
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(RED_PLAYER));
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(BLUE_PLAYER));
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(TAN_PLAYER));
+}
+
+TEST_F(ThreePlayerFreeForAllSimultaneousTurnsTest, battleLocksOnlyItsParticipants)
+{
+	startThreePlayerTurns();
+	ASSERT_TRUE(startHeroBattle(RED_PLAYER, BLUE_PLAYER));
+
+	const auto * battle = gameState->getBattle(RED_PLAYER);
+	ASSERT_NE(battle, nullptr);
+	EXPECT_EQ(gameState->getBattle(BLUE_PLAYER), battle);
+	EXPECT_EQ(gameState->getBattle(TAN_PLAYER), nullptr);
+
+	MoveHero probeMovement;
+	EXPECT_TRUE(gameHandler->isBlockedByQueries(&probeMovement, RED_PLAYER));
+	EXPECT_TRUE(gameHandler->isBlockedByQueries(&probeMovement, BLUE_PLAYER));
+	EXPECT_FALSE(gameHandler->isBlockedByQueries(&probeMovement, TAN_PLAYER));
+
+	auto * tanHero = hero(TAN_PLAYER);
+	ASSERT_NE(tanHero, nullptr);
+	const int3 tanDestination = tanHero->visitablePos() + int3(0, -1, 0);
+	MoveHero networkMovement(
+		{tanHero->convertFromVisitablePos(tanDestination)},
+		EPathfindingLayer::LAND,
+		tanHero->id,
+		false);
+	networkMovement.player = TAN_PLAYER;
+	server.clearPackageResult();
+	gameHandler->handleReceivedPack(connectionFor(TAN_PLAYER), networkMovement);
+	ASSERT_TRUE(server.packageResult().has_value());
+	EXPECT_TRUE(*server.packageResult());
+	EXPECT_EQ(tanHero->visitablePos(), tanDestination);
+	EXPECT_TRUE(gameHandler->turnOrder->onPlayerEndsTurn(TAN_PLAYER));
+	EXPECT_FALSE(gameHandler->turnOrder->isPlayerMakingTurn(TAN_PLAYER));
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(RED_PLAYER));
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(BLUE_PLAYER));
+}
+
+TEST_F(ThreePlayerFreeForAllSimultaneousTurnsTest, laterColorBattleAlsoLocksOnlyItsParticipants)
+{
+	startThreePlayerTurns();
+	ASSERT_TRUE(startHeroBattle(BLUE_PLAYER, TAN_PLAYER));
+
+	const auto * battle = gameState->getBattle(BLUE_PLAYER);
+	ASSERT_NE(battle, nullptr);
+	EXPECT_EQ(gameState->getBattle(TAN_PLAYER), battle);
+	EXPECT_EQ(gameState->getBattle(RED_PLAYER), nullptr);
+
+	MoveHero movement;
+	EXPECT_TRUE(gameHandler->isBlockedByQueries(&movement, BLUE_PLAYER));
+	EXPECT_TRUE(gameHandler->isBlockedByQueries(&movement, TAN_PLAYER));
+	EXPECT_FALSE(gameHandler->isBlockedByQueries(&movement, RED_PLAYER));
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(RED_PLAYER));
+}
+
+TEST_F(ThreePlayerFreeForAllSimultaneousTurnsTest, sharedTurnsRestartAfterPlayersFinishOutOfOrder)
+{
+	startThreePlayerTurns();
+	const int startingDay = gameState->day;
+
+	ASSERT_TRUE(gameHandler->turnOrder->onPlayerEndsTurn(TAN_PLAYER));
+	ASSERT_TRUE(gameHandler->turnOrder->onPlayerEndsTurn(RED_PLAYER));
+	ASSERT_TRUE(gameHandler->turnOrder->onPlayerEndsTurn(BLUE_PLAYER));
+
+	EXPECT_EQ(gameState->day, startingDay + 1);
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(RED_PLAYER));
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(BLUE_PLAYER));
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(TAN_PLAYER));
+}
+
+TEST_F(ThreePlayerFreeForAllSimultaneousTurnsTest, thirdPlayerCannotJoinOccupiedBattleButCanMoveElsewhere)
+{
+	startThreePlayerTurns();
+	ASSERT_TRUE(startHeroBattle(RED_PLAYER, BLUE_PLAYER));
+
+	auto * redHero = hero(RED_PLAYER);
+	auto * tanHero = hero(TAN_PLAYER);
+	ASSERT_NE(redHero, nullptr);
+	ASSERT_NE(tanHero, nullptr);
+
+	while(!tanHero->visitablePos().areNeighbours(redHero->visitablePos()))
+	{
+		int3 destination = tanHero->visitablePos();
+		if(destination.y != redHero->visitablePos().y)
+			destination.y += destination.y < redHero->visitablePos().y ? 1 : -1;
+		else
+			destination.x += destination.x < redHero->visitablePos().x ? 1 : -1;
+
+		ASSERT_TRUE(moveOneTile(tanHero, destination));
+	}
+
+	const int3 positionBeforeRejectedInteraction = tanHero->visitablePos();
+	EXPECT_FALSE(moveOneTile(tanHero, redHero->visitablePos()));
+	EXPECT_EQ(tanHero->visitablePos(), positionBeforeRejectedInteraction);
+	EXPECT_EQ(gameState->getBattle(TAN_PLAYER), nullptr);
+
+	const int horizontalDirection = tanHero->visitablePos().x > 0 ? -1 : 1;
+	const int3 freeDestination = tanHero->visitablePos() + int3(horizontalDirection, 0, 0);
+	ASSERT_TRUE(moveOneTile(tanHero, freeDestination));
+	EXPECT_EQ(tanHero->visitablePos(), freeDestination);
+}
+
+TEST_F(ThreePlayerFreeForAllSimultaneousTurnsTest, battleRecoveryPreservesAllSharedTurnParticipants)
+{
+	ASSERT_TRUE(recruitReserveHero(BLUE_PLAYER));
+	startThreePlayerTurns();
+	ASSERT_TRUE(startHeroBattle(RED_PLAYER, BLUE_PLAYER));
+
+	auto * tanHero = hero(TAN_PLAYER);
+	ASSERT_NE(tanHero, nullptr);
+	const int3 tanDestination = tanHero->visitablePos() + int3(0, -1, 0);
+	ASSERT_TRUE(moveOneTile(tanHero, tanDestination));
+
+	gameHandler->battles->cheatBattleVictory(RED_PLAYER);
+	for(int remainingDialogLimit = 10; remainingDialogLimit > 0; --remainingDialogLimit)
+	{
+		auto query = gameHandler->queries->topQuery(RED_PLAYER);
+		if(!query || !query->endsByPlayerAnswer())
+			break;
+
+		ASSERT_TRUE(gameHandler->queryReply(query->queryID, 0, RED_PLAYER));
+	}
+
+	EXPECT_EQ(gameState->getBattle(RED_PLAYER), nullptr);
+	EXPECT_EQ(gameState->getBattle(BLUE_PLAYER), nullptr);
+	EXPECT_EQ(gameState->getBattle(TAN_PLAYER), nullptr);
+	EXPECT_EQ(gameHandler->queries->topQuery(RED_PLAYER), nullptr);
+	EXPECT_EQ(gameHandler->queries->topQuery(BLUE_PLAYER), nullptr);
+	EXPECT_EQ(gameHandler->queries->topQuery(TAN_PLAYER), nullptr);
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(RED_PLAYER));
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(BLUE_PLAYER));
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(TAN_PLAYER));
+	EXPECT_EQ(tanHero->visitablePos(), tanDestination);
+
+	EXPECT_TRUE(gameHandler->turnOrder->onPlayerEndsTurn(RED_PLAYER));
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(BLUE_PLAYER));
+	EXPECT_TRUE(gameHandler->turnOrder->isPlayerMakingTurn(TAN_PLAYER));
+}
+
+TEST_F(ThreePlayerFreeForAllSimultaneousTurnsTest, currentTurnOrderRoundTripPreservesProgress)
+{
+	startThreePlayerTurns();
+	ASSERT_TRUE(gameHandler->turnOrder->onPlayerEndsTurn(TAN_PLAYER));
+
+	CMemorySerializer serializer;
+	serializer.oser & *gameHandler->turnOrder;
+
+	TurnOrderProcessor restored(gameHandler.get());
+	serializer.iser & restored;
+
+	EXPECT_TRUE(restored.isPlayerMakingTurn(RED_PLAYER));
+	EXPECT_TRUE(restored.isPlayerMakingTurn(BLUE_PLAYER));
+	EXPECT_FALSE(restored.isPlayerMakingTurn(TAN_PLAYER));
+	EXPECT_EQ(
+		restored.isContactAllowed(RED_PLAYER, BLUE_PLAYER),
+		gameHandler->turnOrder->isContactAllowed(RED_PLAYER, BLUE_PLAYER));
+	EXPECT_EQ(
+		restored.isContactAllowed(RED_PLAYER, TAN_PLAYER),
+		gameHandler->turnOrder->isContactAllowed(RED_PLAYER, TAN_PLAYER));
+	EXPECT_EQ(
+		restored.isContactAllowed(BLUE_PLAYER, TAN_PLAYER),
+		gameHandler->turnOrder->isContactAllowed(BLUE_PLAYER, TAN_PLAYER));
+}
 
 TEST_F(FreeForAllSimultaneousTurnsTest, enemyThreatRangesDoNotEndSimultaneousTurns)
 {
@@ -305,7 +510,7 @@ TEST_F(FreeForAllSimultaneousTurnsTest, adventurePacketsAreRejectedForBothPlayer
 		movement.hid = hero(player)->id;
 
 		server.clearPackageResult();
-		gameHandler->handleReceivedPack(GameConnectionID::FIRST_CONNECTION, movement);
+		gameHandler->handleReceivedPack(connectionFor(player), movement);
 
 		ASSERT_TRUE(server.packageResult().has_value());
 		EXPECT_FALSE(*server.packageResult());
