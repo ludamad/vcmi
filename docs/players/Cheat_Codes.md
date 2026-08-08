@@ -125,8 +125,8 @@ Following commands can be used by any player in multiplayer:
 - `!help` - displays in-game list of available commands
 - `!cheaters` - lists players that have entered cheat at any point of the game
 - `!vote` - initiates voting to change one of the possible options:
-- `!vote simturns allow X` - allow simultaneous turns for specified number of days, or until contact
-- `!vote simturns force X` - force simultaneous turns for specified number of days, blocking player contacts
+- `!vote simturns allow X` - allow simultaneous turns for up to the specified number of days
+- `!vote simturns force X` - guarantee simultaneous turns for at least the specified number of days
 - `!vote simturns abort` - abort simultaneous turns once this turn ends
 - `!vote timer prolong X` - prolong base timer for all players by specified number of seconds
 

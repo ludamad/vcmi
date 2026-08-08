@@ -30,9 +30,9 @@ class PlayerColor;
 
 struct DLL_LINKAGE SimturnsInfo
 {
-	/// Minimal number of turns that must be played simultaneously even if contact has been detected
+	/// Minimal number of turns that must be played simultaneously
 	int requiredTurns = 0;
-	/// Maximum number of turns that might be played simultaneously unless contact is detected
+	/// Maximum number of turns that might be played simultaneously
 	int optionalTurns = 0;
 	/// If set to true, human and 1 AI can act at the same time
 	bool allowHumanWithAI = false;
